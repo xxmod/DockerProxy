@@ -231,6 +231,12 @@
       padding: 20px 0;
     }
 
+    .hint {
+      margin: -8px 0 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 600px) {
       .search-row { flex-direction: column; }
       .btn { width: 100%; }
@@ -299,6 +305,13 @@
     </div>
 
     <div class="card">
+      <h2>Docker 客户端配置</h2>
+      <div class="hint">将以下内容写入 /etc/docker/daemon.json，然后重启 Docker 服务</div>
+      <pre id="daemonJson">加载中...</pre>
+      <button class="btn secondary" onclick="copyDaemonConfig()">一键复制 daemon.json</button>
+    </div>
+
+    <div class="card">
       <h2>运行状态</h2>
       <pre id="stats">加载中...</pre>
       <div class="btn-group">
@@ -327,6 +340,7 @@
         document.getElementById('upstreamRegistry').value = res.data.upstream_registry || '';
         document.getElementById('upstreamAuthRealm').value = res.data.upstream_auth_realm || '';
       }
+      refreshDaemonConfig();
     }
 
     async function saveConfig() {
@@ -429,6 +443,39 @@
       return source.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
     }
 
+    function getMirrorURL() {
+      const configured = document.getElementById('publicBaseUrl').value.trim();
+      if (configured) {
+        if (configured.startsWith('http://') || configured.startsWith('https://')) {
+          return configured.replace(/\/+$/, '');
+        }
+        const protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+        return (protocol + configured).replace(/\/+$/, '');
+      }
+      return window.location.origin.replace(/\/+$/, '');
+    }
+
+    function buildDaemonConfig() {
+      const mirror = getMirrorURL();
+      return JSON.stringify({
+        "registry-mirrors": [mirror]
+      }, null, 2);
+    }
+
+    function refreshDaemonConfig() {
+      document.getElementById('daemonJson').textContent = buildDaemonConfig();
+    }
+
+    async function copyDaemonConfig() {
+      const daemonConfig = buildDaemonConfig();
+      const ok = await copyToClipboard(daemonConfig);
+      if (ok) {
+        alert('已复制 daemon.json 配置');
+      } else {
+        alert('复制失败，请手动复制');
+      }
+    }
+
     async function copyToClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);
@@ -444,6 +491,7 @@
       }
     }
 
+    document.getElementById('publicBaseUrl').addEventListener('input', refreshDaemonConfig);
     loadConfig();
     refreshStats();
   </script>
