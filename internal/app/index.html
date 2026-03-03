@@ -6,14 +6,14 @@
   <title>Docker Proxy 管理台</title>
   <style>
     :root {
-      --bg: #ffffff;
+      --bg: #eef1f4;
       --surface: #ffffff;
       --brand: #38df91;
       --brand-soft: #bfffe3;
-      --text: #0f172a;
-      --text-muted: #475569;
-      --border: #98f3c5;
-      --shadow: 0 8px 24px rgba(56, 223, 145, 0.12);
+      --text: #10243a;
+      --text-muted: #4b5f76;
+      --border: #d6dce4;
+      --shadow: 0 8px 20px rgba(16, 36, 58, 0.05);
     }
 
     * { box-sizing: border-box; }
@@ -21,56 +21,76 @@
     body {
       font-family: "Segoe UI", Arial, sans-serif;
       margin: 0;
-      padding: 24px;
-      background: linear-gradient(180deg, #ffffff 0%, #f3fff9 100%);
+      background: var(--bg);
       color: var(--text);
       line-height: 1.45;
     }
 
-    h1 {
-      margin: 0 0 6px;
-      color: #0b3b27;
+    .hero {
+      background: #ffffff;
+      padding: 34px 16px 30px;
+      text-align: center;
+      border-bottom: 1px solid #dbe2ea;
     }
 
-    p {
-      margin: 0 0 18px;
+    h1 {
+      margin: 0;
+      color: var(--brand);
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .hero p {
+      margin: 14px 0 0;
       color: var(--text-muted);
+      font-size: 22px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 36px auto;
+      padding: 0 18px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      color: var(--brand);
+      font-size: 40px;
+      font-weight: 700;
     }
 
     h3 {
-      margin: 0 0 12px;
-      color: #115737;
+      margin: 0 0 14px;
+      color: var(--brand);
+      font-size: 38px;
+      font-weight: 700;
     }
 
     label {
       display: block;
       margin-top: 10px;
-      font-size: 14px;
-      color: #145a39;
+      font-size: 17px;
+      color: #1e3a57;
       font-weight: 600;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .card {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      background: var(--surface);
-      box-shadow: var(--shadow);
     }
 
     input, button, textarea {
       width: 100%;
-      padding: 10px;
+      padding: 14px 16px;
       margin-top: 8px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      font-size: 14px;
+      border-radius: 12px;
+      border: 1px solid #c8d1dc;
+      font-size: 28px;
       transition: all 0.2s ease;
       background: #ffffff;
       color: var(--text);
@@ -80,6 +100,23 @@
       outline: none;
       border-color: var(--brand);
       box-shadow: 0 0 0 3px rgba(56, 223, 145, 0.2);
+    }
+
+    .search-row {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .search-row input {
+      margin-top: 0;
+      flex: 1;
+    }
+
+    .search-row button {
+      margin-top: 0;
+      width: 170px;
+      flex: 0 0 auto;
     }
 
     .checkbox-row {
@@ -93,18 +130,19 @@
       width: auto;
       margin: 0;
       accent-color: var(--brand);
-      transform: scale(1.1);
+      transform: scale(1.25);
     }
 
     .checkbox-row label {
       margin: 0;
+      font-size: 18px;
     }
 
     button {
       cursor: pointer;
       border-color: var(--brand);
-      background: linear-gradient(180deg, #7ef2bc 0%, var(--brand) 100%);
-      color: #05351f;
+      background: linear-gradient(90deg, var(--brand) 0%, #9cf4c8 100%);
+      color: #072c1a;
       font-weight: 700;
     }
 
@@ -116,34 +154,61 @@
     pre {
       background: var(--brand-soft);
       border: 1px solid var(--border);
-      padding: 12px;
-      border-radius: 10px;
+      padding: 16px;
+      border-radius: 12px;
       overflow: auto;
       color: #06341f;
+      font-size: 18px;
     }
 
     .result-item {
-      border-bottom: 1px solid var(--border);
-      padding: 10px 0;
+      border-bottom: 1px solid #d9e0e8;
+      padding: 14px 0;
+      font-size: 22px;
     }
 
     .result-item small {
-      color: #166943;
+      color: #2f5c7e;
+      font-size: 18px;
     }
 
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-      body { padding: 16px; }
+    .muted-note {
+      color: #5e7084;
+      text-align: center;
+      font-size: 34px;
+      margin: 10px 0 0;
+    }
+
+    @media (max-width: 960px) {
+      h1, h2, h3 { font-size: 28px; }
+      .hero p, .muted-note { font-size: 18px; }
+      input, button, textarea, .result-item { font-size: 16px; }
+      pre { font-size: 14px; }
+      .search-row { flex-direction: column; align-items: stretch; }
+      .search-row button { width: 100%; }
+      .container { margin: 20px auto; }
+      .card { padding: 18px; }
     }
   </style>
 </head>
 <body>
-  <h1>Docker Proxy 管理台</h1>
-  <p>用于管理代理配置、缓存和镜像搜索。</p>
+  <div class="hero">
+    <h1>Docker Proxy 管理台</h1>
+    <p>配置 HTTPS、代理参数并搜索镜像，体验类似截图风格的管理页面</p>
+  </div>
 
-  <div class="grid">
+  <div class="container">
     <div class="card">
-      <h3>当前配置</h3>
+      <h3>搜索镜像（前 10 条）</h3>
+      <div class="search-row">
+        <input id="searchQuery" placeholder="输入镜像名称，例如 nginx" />
+        <button onclick="searchImages()">搜索</button>
+      </div>
+      <div id="searchResults" class="muted-note">请先搜索想要的镜像</div>
+    </div>
+
+    <div class="card">
+      <h3>代理配置</h3>
       <pre id="config">加载中...</pre>
       <label>Public Base URL</label>
       <input id="publicBaseUrl" placeholder="https://docker-proxy.example.com" />
@@ -170,13 +235,6 @@
       <button onclick="refreshStats()">刷新状态</button>
       <button onclick="clearCache()">清空缓存</button>
     </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h3>镜像搜索（Docker Hub）</h3>
-    <input id="searchQuery" placeholder="例如：nginx" />
-    <button onclick="searchImages()">搜索</button>
-    <div id="searchResults"></div>
   </div>
 
   <script>
