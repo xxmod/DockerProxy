@@ -58,19 +58,45 @@ docker pull nginx
 
 所有配置均通过环境变量设置，启动时读取。
 
-程序启动时会尝试读取当前目录的 `.env` 文件，格式为 `变量=值`，例如：
+### 使用 .env 配置文件
+
+程序启动时会自动读取当前目录的 `.env` 文件。在可执行文件同目录创建 `.env` 文件，格式为 `变量=值`。
+
+**完整 .env 示例**：
 
 ```env
-ENABLE_HTTPS=true
+# 基础配置
 LISTEN_ADDR=:8080
 PUBLIC_BASE_URL=https://proxy.example.com
+CONFIG_FILE=./data/config.json
+
+# 上游代理
+UPSTREAM_REGISTRY=https://registry-1.docker.io
+UPSTREAM_AUTH_REALM=https://auth.docker.io/token
+REQUEST_TIMEOUT=60s
+
+# 缓存配置
+CACHE_DIR=./data/cache
+CACHE_TTL=12h
+CACHE_OBJECT_MAX_BYTES=8388608
+
+# HTTPS 配置
+ENABLE_HTTPS=true
+TLS_CERT_FILE=/etc/letsencrypt/live/proxy.example.com/fullchain.pem
+TLS_KEY_FILE=/etc/letsencrypt/live/proxy.example.com/privkey.pem
+HTTP_REDIRECT_ADDR=:80
+
+# 安全
+ADMIN_TOKEN=your-secret-token-here
 ```
 
-说明：
+**说明**：
 
-- `.env` 中的变量会注入到进程环境变量中。
-- 若同名变量已在系统环境中存在，则**保留系统环境变量值**（`.env` 不覆盖）。
-- 之后仍使用现有的环境变量读取逻辑（`os.Getenv`）进行配置加载。
+- 支持 `#` 开头的注释行和空行
+- 支持 `KEY=VALUE` 和 `export KEY=VALUE` 格式
+- 支持单引号、双引号包裹值：`KEY="value"` 或 `KEY='value'`
+- `.env` 变量优先级：**系统环境变量 > .env 文件**（已存在的系统环境变量不会被覆盖）
+- 不需要的变量可以省略或注释掉，程序会使用默认值
 
 ### 基础配置
 
