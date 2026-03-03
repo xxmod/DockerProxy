@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -207,13 +208,14 @@ func (c *manifestCache) clear() error {
 }
 
 type Server struct {
-	httpServer *http.Server
-	client     *http.Client
-	cache      *manifestCache
-	metrics    *metrics
-	restarting atomic.Bool
-	cfgMu      sync.RWMutex
-	cfg        Config
+	httpServer     *http.Server
+	redirectServer *http.Server
+	client         *http.Client
+	cache          *manifestCache
+	metrics        *metrics
+	restarting     atomic.Bool
+	cfgMu          sync.RWMutex
+	cfg            Config
 }
 
 func LoadConfigFromEnv() Config {
@@ -500,6 +502,15 @@ func (s *Server) ListenAndServe() error {
 		if cfg.TLSCertFile == "" || cfg.TLSKeyFile == "" {
 			return errors.New("https enabled but TLS_CERT_FILE or TLS_KEY_FILE is empty")
 		}
+		s.redirectServer = &http.Server{
+			Addr:    buildHTTPRedirectAddr(cfg.ListenAddr),
+			Handler: s.httpToHTTPSRedirectHandler(),
+		}
+		go func() {
+			if redirectErr := s.redirectServer.ListenAndServe(); redirectErr != nil && !errors.Is(redirectErr, http.ErrServerClosed) {
+				log.Printf("http redirect server stopped: %v", redirectErr)
+			}
+		}()
 		err = s.httpServer.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
 	} else {
 		err = s.httpServer.ListenAndServe()
@@ -511,7 +522,39 @@ func (s *Server) ListenAndServe() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.redirectServer != nil {
+		if err := s.redirectServer.Shutdown(ctx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("shutdown redirect server failed: %v", err)
+		}
+	}
 	return s.httpServer.Shutdown(ctx)
+}
+
+func (s *Server) httpToHTTPSRedirectHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cfg := s.getConfig()
+		targetBase := strings.TrimRight(cfg.PublicBaseURL, "/")
+		if targetBase == "" {
+			targetBase = "https://" + r.Host
+		}
+		target := targetBase + r.URL.RequestURI()
+		http.Redirect(w, r, target, http.StatusPermanentRedirect)
+	})
+}
+
+func buildHTTPRedirectAddr(httpsAddr string) string {
+	trimmed := strings.TrimSpace(httpsAddr)
+	if trimmed == "" || strings.HasPrefix(trimmed, ":") {
+		return ":80"
+	}
+	host, _, err := net.SplitHostPort(trimmed)
+	if err != nil {
+		return ":80"
+	}
+	if host == "" {
+		return ":80"
+	}
+	return net.JoinHostPort(host, "80")
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
