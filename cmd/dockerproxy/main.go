@@ -12,6 +12,10 @@ import (
 )
 
 func main() {
+	if err := app.LoadEnvFile(".env"); err != nil {
+		log.Printf("load .env failed: %v", err)
+	}
+
 	cfg := app.LoadConfigFromEnv()
 	server, err := app.NewServer(cfg)
 	if err != nil {

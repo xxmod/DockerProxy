@@ -58,6 +58,20 @@ docker pull nginx
 
 所有配置均通过环境变量设置，启动时读取。
 
+程序启动时会尝试读取当前目录的 `.env` 文件，格式为 `变量=值`，例如：
+
+```env
+ENABLE_HTTPS=true
+LISTEN_ADDR=:8080
+PUBLIC_BASE_URL=https://proxy.example.com
+```
+
+说明：
+
+- `.env` 中的变量会注入到进程环境变量中。
+- 若同名变量已在系统环境中存在，则**保留系统环境变量值**（`.env` 不覆盖）。
+- 之后仍使用现有的环境变量读取逻辑（`os.Getenv`）进行配置加载。
+
 ### 基础配置
 
 | 变量                | 说明                                               | 默认值                    |
@@ -101,11 +115,7 @@ docker pull nginx
 | 变量                        | 说明                                       | 默认值                       |
 | --------------------------- | ------------------------------------------ | ---------------------------- |
 | `ADMIN_TOKEN`             | 管理写操作口令（保存配置、清空缓存时校验） | ——（不设置则写操作无鉴权） |
-| `WEB_BASIC_AUTH_USER`     | Web 管理端 Basic Auth 用户名               | ——（不设置则不启用）       |
-| `WEB_BASIC_AUTH_PASSWORD` | Web 管理端 Basic Auth 密码                 | ——（不设置则不启用）       |
-
 > `ADMIN_TOKEN` 保护的是管理写操作（PUT / DELETE），通过请求头 `X-Admin-Token` 或 `Authorization: Bearer <token>` 传递。
-> Basic Auth 保护的是 Web 页面（`/`）和 Web API（`/api/*`）访问，不影响 `/v2` 与 `/auth/token` 的 Docker 拉取链路。
 
 
 
@@ -127,21 +137,21 @@ docker pull nginx
 
 ## API 接口
 
-| 方法   | 路径                       | 说明                       | 鉴权                     |
-| ------ | -------------------------- | -------------------------- | ------------------------ |
-| GET    | `/healthz`               | 健康检查                   | 无                       |
-| GET    | `/`                      | Web 管理页面               | Basic Auth（若启用）     |
-| GET    | `/api/admin/config`      | 查看当前配置               | Basic Auth（若启用）     |
-| PUT    | `/api/admin/config`      | 更新配置（保存后自动重启） | Basic Auth + Admin Token |
-| GET    | `/api/admin/stats`       | 查看运行统计               | Basic Auth（若启用）     |
-| GET    | `/api/admin/cache`       | 查看缓存条目数             | Basic Auth（若启用）     |
-| DELETE | `/api/admin/cache`       | 清空缓存                   | Basic Auth + Admin Token |
-| GET    | `/api/search?q=<关键词>` | 搜索 Docker Hub 镜像       | Basic Auth（若启用）     |
+| 方法   | 路径                       | 说明                       | 鉴权 |
+| ------ | -------------------------- | -------------------------- | ---- |
+| GET    | `/healthz`               | 健康检查                   | 无 |
+| GET    | `/`                      | Web 管理页面               | 无 |
+| GET    | `/api/admin/config`      | 查看当前配置               | 无 |
+| PUT    | `/api/admin/config`      | 更新配置（保存后自动重启） | Admin Token |
+| GET    | `/api/admin/stats`       | 查看运行统计               | 无 |
+| GET    | `/api/admin/cache`       | 查看缓存条目数             | 无 |
+| DELETE | `/api/admin/cache`       | 清空缓存                   | Admin Token |
+| GET    | `/api/search?q=<关键词>` | 搜索 Docker Hub 镜像       | 无 |
 
 ---
 
 ## 注意事项
 
 - 通过 Web 后台保存的配置会持久化到 `CONFIG_FILE`，重启后自动加载并覆盖环境变量中的对应字段。
-- 若对外暴露服务，**强烈建议**同时设置 `ADMIN_TOKEN` 和 `WEB_BASIC_AUTH_USER`/`WEB_BASIC_AUTH_PASSWORD`。
+- 若对外暴露服务，**强烈建议**设置 `ADMIN_TOKEN`，并配合反向代理做 HTTPS 与访问控制。
 - 缓存目录可挂载独立卷，便于容器重建后保留缓存数据。
