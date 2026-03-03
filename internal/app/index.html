@@ -237,6 +237,16 @@
       color: var(--text-muted);
     }
 
+    .inline-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .inline-row .form-group {
+      flex: 1;
+      margin-bottom: 0;
+    }
+
     @media (max-width: 600px) {
       .search-row { flex-direction: column; }
       .btn { width: 100%; }
@@ -251,6 +261,21 @@
   </header>
 
   <div class="container">
+    <div class="card">
+      <h2>Web 访问认证</h2>
+      <div class="hint">如果服务端启用了 WEB_BASIC_AUTH_USER / WEB_BASIC_AUTH_PASSWORD，请先填写再请求 API</div>
+      <div class="inline-row">
+        <div class="form-group">
+          <label>Basic Auth 用户名</label>
+          <input type="text" id="webBasicUser" placeholder="例如：admin" />
+        </div>
+        <div class="form-group">
+          <label>Basic Auth 密码</label>
+          <input type="password" id="webBasicPass" placeholder="请输入密码" />
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <h2>搜索镜像 <span style="font-weight:normal;color:var(--text-muted);font-size:14px">(前 10 条)</span></h2>
       <div class="search-row">
@@ -322,15 +347,35 @@
   </div>
 
   <script>
+    function getWebBasicAuthHeader() {
+      const user = document.getElementById('webBasicUser').value.trim();
+      const pass = document.getElementById('webBasicPass').value;
+      if (!user && !pass) {
+        return '';
+      }
+      return 'Basic ' + btoa(`${user}:${pass}`);
+    }
+
     async function api(path, options = {}) {
-      const response = await fetch(path, options);
+      const headers = { ...(options.headers || {}) };
+      const basicAuth = getWebBasicAuthHeader();
+      if (basicAuth) {
+        headers['Authorization'] = basicAuth;
+      }
+
+      const response = await fetch(path, { ...options, headers });
       const text = await response.text();
-      try { return { ok: response.ok, data: JSON.parse(text) }; }
-      catch { return { ok: response.ok, data: { raw: text } }; }
+      try { return { ok: response.ok, status: response.status, data: JSON.parse(text) }; }
+      catch { return { ok: response.ok, status: response.status, data: { raw: text } }; }
     }
 
     async function loadConfig() {
       const res = await api('/api/admin/config');
+      if (res.status === 401) {
+        document.getElementById('config').textContent = '认证失败：请先填写上方 Web 访问认证信息';
+        refreshDaemonConfig()
+        return
+      }
       document.getElementById('config').textContent = JSON.stringify(res.data, null, 2);
       if (res.ok) {
         document.getElementById('publicBaseUrl').value = res.data.public_base_url || '';
@@ -366,6 +411,10 @@
 
     async function refreshStats() {
       const res = await api('/api/admin/stats');
+      if (res.status === 401) {
+        document.getElementById('stats').textContent = '认证失败：请先填写上方 Web 访问认证信息';
+        return;
+      }
       document.getElementById('stats').textContent = JSON.stringify(res.data, null, 2);
     }
 

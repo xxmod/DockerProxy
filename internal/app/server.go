@@ -40,6 +40,7 @@ var webFS embed.FS
 
 type Config struct {
 	ListenAddr          string        `json:"listen_addr"`
+	HTTPRedirectAddr    string        `json:"http_redirect_addr"`
 	ConfigFilePath      string        `json:"config_file_path"`
 	EnableHTTPS         bool          `json:"enable_https"`
 	TLSCertFile         string        `json:"tls_cert_file"`
@@ -56,6 +57,7 @@ type Config struct {
 
 type configResponse struct {
 	ListenAddr          string `json:"listen_addr"`
+	HTTPRedirectAddr    string `json:"http_redirect_addr"`
 	ConfigFilePath      string `json:"config_file_path"`
 	EnableHTTPS         bool   `json:"enable_https"`
 	TLSCertFile         string `json:"tls_cert_file"`
@@ -244,6 +246,7 @@ func LoadConfigFromEnv() Config {
 
 	cfg := Config{
 		ListenAddr:          envOrDefault("LISTEN_ADDR", defaultListenAddr),
+		HTTPRedirectAddr:    strings.TrimSpace(os.Getenv("HTTP_REDIRECT_ADDR")),
 		ConfigFilePath:      envOrDefault("CONFIG_FILE", defaultConfigFile),
 		EnableHTTPS:         parseEnvBool("ENABLE_HTTPS", false),
 		TLSCertFile:         strings.TrimSpace(os.Getenv("TLS_CERT_FILE")),
@@ -337,6 +340,7 @@ func (c *Config) normalize() {
 	if c.ListenAddr == "" {
 		c.ListenAddr = defaultListenAddr
 	}
+	c.HTTPRedirectAddr = strings.TrimSpace(c.HTTPRedirectAddr)
 	if c.ConfigFilePath == "" {
 		c.ConfigFilePath = defaultConfigFile
 	}
@@ -370,6 +374,9 @@ func (c *Config) normalize() {
 	if c.EnableHTTPS && strings.HasPrefix(strings.ToLower(c.PublicBaseURL), "http://") {
 		c.PublicBaseURL = "https://" + strings.TrimPrefix(c.PublicBaseURL, "http://")
 	}
+	if c.EnableHTTPS && c.HTTPRedirectAddr == "" {
+		c.HTTPRedirectAddr = buildHTTPRedirectAddr(c.ListenAddr)
+	}
 	c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
 	c.UpstreamRegistry = strings.TrimRight(c.UpstreamRegistry, "/")
 }
@@ -399,7 +406,7 @@ func NewServer(cfg Config) (*Server, error) {
 	mux.HandleFunc("/auth/token", s.handleAuthToken)
 	mux.HandleFunc("/v2", s.handleV2)
 	mux.HandleFunc("/v2/", s.handleV2)
-	mux.HandleFunc("/", s.withWebBasicAuth(s.handleIndex))
+	mux.HandleFunc("/", s.handleIndex)
 
 	s.httpServer = &http.Server{
 		Addr:         cfg.ListenAddr,
@@ -506,12 +513,19 @@ func (s *Server) ListenAndServe() error {
 		if cfg.TLSCertFile == "" || cfg.TLSKeyFile == "" {
 			return errors.New("https enabled but TLS_CERT_FILE or TLS_KEY_FILE is empty")
 		}
+		if cfg.HTTPRedirectAddr == "" {
+			return errors.New("https enabled but http redirect address is empty")
+		}
+		redirectListener, listenErr := net.Listen("tcp", cfg.HTTPRedirectAddr)
+		if listenErr != nil {
+			return fmt.Errorf("listen http redirect addr %s failed: %w", cfg.HTTPRedirectAddr, listenErr)
+		}
 		s.redirectServer = &http.Server{
-			Addr:    buildHTTPRedirectAddr(cfg.ListenAddr),
+			Addr:    cfg.HTTPRedirectAddr,
 			Handler: s.httpToHTTPSRedirectHandler(),
 		}
 		go func() {
-			if redirectErr := s.redirectServer.ListenAndServe(); redirectErr != nil && !errors.Is(redirectErr, http.ErrServerClosed) {
+			if redirectErr := s.redirectServer.Serve(redirectListener); redirectErr != nil && !errors.Is(redirectErr, http.ErrServerClosed) {
 				log.Printf("http redirect server stopped: %v", redirectErr)
 			}
 		}()
@@ -834,6 +848,7 @@ func (s *Server) authorized(r *http.Request) bool {
 func toConfigResponse(cfg Config) configResponse {
 	return configResponse{
 		ListenAddr:          cfg.ListenAddr,
+		HTTPRedirectAddr:    cfg.HTTPRedirectAddr,
 		ConfigFilePath:      cfg.ConfigFilePath,
 		EnableHTTPS:         cfg.EnableHTTPS,
 		TLSCertFile:         cfg.TLSCertFile,

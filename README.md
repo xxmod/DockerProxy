@@ -91,9 +91,10 @@ docker pull nginx
 | `ENABLE_HTTPS`  | 是否启用 HTTPS（`true`/`false`） | `false` |
 | `TLS_CERT_FILE` | TLS 证书文件路径                     | ——      |
 | `TLS_KEY_FILE`  | TLS 私钥文件路径                     | ——      |
+| `HTTP_REDIRECT_ADDR` | HTTP 到 HTTPS 的重定向监听地址 | 自动推导（通常 `:80`） |
 
 > 当 `TLS_CERT_FILE` 和 `TLS_KEY_FILE` 都已配置时，服务会自动启用 HTTPS。
-> 启用 HTTPS 后，HTTP 端口（`:80`）会自动运行并 308 重定向到 HTTPS。
+> 启用 HTTPS 后，会启动 HTTP 重定向服务并返回 308 到 HTTPS。若 `:80` 不可用，请显式设置 `HTTP_REDIRECT_ADDR`（例如 `:8081`）。
 
 ### 安全与访问控制
 
@@ -104,7 +105,7 @@ docker pull nginx
 | `WEB_BASIC_AUTH_PASSWORD` | Web 管理端 Basic Auth 密码                 | ——（不设置则不启用）       |
 
 > `ADMIN_TOKEN` 保护的是管理写操作（PUT / DELETE），通过请求头 `X-Admin-Token` 或 `Authorization: Bearer <token>` 传递。
-> Basic Auth 保护的是整个 Web 页面和 `/api/*` 接口的访问，不影响 `/v2` 与 `/auth/token` 的 Docker 拉取链路。
+> Basic Auth 保护的是 Web API（`/api/*`）访问，不影响 `/v2` 与 `/auth/token` 的 Docker 拉取链路。
 
 
 
