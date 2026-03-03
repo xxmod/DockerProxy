@@ -5,14 +5,136 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Docker Proxy 管理台</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
-    h1 { margin-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
-    input, button, textarea { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 8px; }
-    button { cursor: pointer; }
-    pre { background: #f9fafb; padding: 12px; border-radius: 8px; overflow: auto; }
-    .result-item { border-bottom: 1px solid #e5e7eb; padding: 8px 0; }
+    :root {
+      --bg: #ffffff;
+      --surface: #ffffff;
+      --brand: #38df91;
+      --brand-soft: #bfffe3;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --border: #98f3c5;
+      --shadow: 0 8px 24px rgba(56, 223, 145, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: linear-gradient(180deg, #ffffff 0%, #f3fff9 100%);
+      color: var(--text);
+      line-height: 1.45;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      color: #0b3b27;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: var(--text-muted);
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      color: #115737;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #145a39;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    input, button, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      transition: all 0.2s ease;
+      background: #ffffff;
+      color: var(--text);
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(56, 223, 145, 0.2);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      accent-color: var(--brand);
+      transform: scale(1.1);
+    }
+
+    .checkbox-row label {
+      margin: 0;
+    }
+
+    button {
+      cursor: pointer;
+      border-color: var(--brand);
+      background: linear-gradient(180deg, #7ef2bc 0%, var(--brand) 100%);
+      color: #05351f;
+      font-weight: 700;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(56, 223, 145, 0.3);
+    }
+
+    pre {
+      background: var(--brand-soft);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: 10px;
+      overflow: auto;
+      color: #06341f;
+    }
+
+    .result-item {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 0;
+    }
+
+    .result-item small {
+      color: #166943;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -25,8 +147,10 @@
       <pre id="config">加载中...</pre>
       <label>Public Base URL</label>
       <input id="publicBaseUrl" placeholder="https://docker-proxy.example.com" />
-      <label>启用 HTTPS</label>
-      <input id="enableHttps" type="checkbox" style="width:auto; margin-top:12px;" />
+      <div class="checkbox-row">
+        <input id="enableHttps" type="checkbox" />
+        <label for="enableHttps">启用 HTTPS</label>
+      </div>
       <label>TLS Cert File</label>
       <input id="tlsCertFile" placeholder="例如：/etc/ssl/certs/fullchain.pem" />
       <label>TLS Key File</label>
