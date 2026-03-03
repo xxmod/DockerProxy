@@ -165,11 +165,29 @@
       border-bottom: 1px solid #d9e0e8;
       padding: 14px 0;
       font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      border-radius: 8px;
+    }
+
+    .result-item:hover {
+      background: #f5fff9;
     }
 
     .result-item small {
       color: #2f5c7e;
       font-size: 13px;
+    }
+
+    .pull-cmd {
+      margin-top: 6px;
+      padding: 8px 10px;
+      background: #f6fffb;
+      border: 1px dashed #9deec6;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #1f4a37;
+      word-break: break-all;
     }
 
     .muted-note {
@@ -207,6 +225,7 @@
         <button onclick="searchImages()">搜索</button>
       </div>
       <div id="searchResults" class="muted-note">请先搜索想要的镜像</div>
+      <div class="muted-note" style="font-size:13px; margin-top:8px;">单击某条镜像结果即可复制可直接执行的 docker pull 命令</div>
     </div>
 
     <div class="card">
@@ -306,12 +325,63 @@
       results.forEach(item => {
         const div = document.createElement('div');
         div.className = 'result-item';
-        const name = item.repo_name || item.name || '-';
+        const name = normalizeRepoName(item.repo_name || item.name || '-');
         const desc = item.short_description || item.description || '';
         const stars = item.star_count ?? item.pull_count ?? '-';
-        div.innerHTML = `<strong>${name}</strong><div>${desc}</div><small>热度：${stars}</small>`;
+        const pullCmd = buildPullCommand(name);
+        div.innerHTML = `<strong>${name}</strong><div>${desc}</div><small>热度：${stars}</small><div class="pull-cmd">${pullCmd}</div>`;
+        div.title = '单击复制 docker pull 命令';
+        div.onclick = async () => {
+          const ok = await copyToClipboard(pullCmd);
+          if (ok) {
+            alert('已复制：' + pullCmd);
+          } else {
+            alert('复制失败，请手动复制：' + pullCmd);
+          }
+        };
         container.appendChild(div);
       });
+    }
+
+    function normalizeRepoName(name) {
+      const cleaned = String(name || '').trim().replace(/^\/+|\/+$/g, '');
+      if (!cleaned) return 'library/unknown';
+      if (cleaned.includes('/')) return cleaned;
+      return `library/${cleaned}`;
+    }
+
+    function buildPullCommand(repoName) {
+      const base = getPullBaseURL();
+      return `docker pull ${base}/${repoName}`;
+    }
+
+    function getPullBaseURL() {
+      const configured = document.getElementById('publicBaseUrl').value.trim();
+      const source = configured || window.location.origin || window.location.host;
+
+      try {
+        if (source.startsWith('http://') || source.startsWith('https://')) {
+          const parsed = new URL(source);
+          return parsed.host;
+        }
+      } catch (_) {}
+
+      return source.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    }
+
+    async function copyToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return ok;
+      }
     }
 
     loadConfig();
