@@ -406,7 +406,7 @@ func NewServer(cfg Config) (*Server, error) {
 	mux.HandleFunc("/auth/token", s.handleAuthToken)
 	mux.HandleFunc("/v2", s.handleV2)
 	mux.HandleFunc("/v2/", s.handleV2)
-	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/", s.withWebBasicAuth(s.handleIndex))
 
 	s.httpServer = &http.Server{
 		Addr:         cfg.ListenAddr,

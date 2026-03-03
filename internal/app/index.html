@@ -247,6 +247,18 @@
       margin-bottom: 0;
     }
 
+    .auth-actions {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .auth-state {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 600px) {
       .search-row { flex-direction: column; }
       .btn { width: 100%; }
@@ -273,6 +285,10 @@
           <label>Basic Auth 密码</label>
           <input type="password" id="webBasicPass" placeholder="请输入密码" />
         </div>
+      </div>
+      <div class="auth-actions">
+        <button class="btn secondary" onclick="applyWebAuth()">确认并生效</button>
+        <span id="webAuthState" class="auth-state">当前未应用</span>
       </div>
     </div>
 
@@ -347,13 +363,37 @@
   </div>
 
   <script>
+    let webAuthApplied = false;
+
     function getWebBasicAuthHeader() {
+      if (!webAuthApplied) {
+        return '';
+      }
       const user = document.getElementById('webBasicUser').value.trim();
       const pass = document.getElementById('webBasicPass').value;
       if (!user && !pass) {
         return '';
       }
       return 'Basic ' + btoa(`${user}:${pass}`);
+    }
+
+    function setWebAuthState(message) {
+      document.getElementById('webAuthState').textContent = message;
+    }
+
+    async function applyWebAuth() {
+      webAuthApplied = true;
+      setWebAuthState('认证已应用，正在验证...');
+      const res = await api('/api/admin/stats');
+      if (res.status === 401) {
+        webAuthApplied = false;
+        setWebAuthState('认证失败，请检查用户名和密码');
+        alert('Web 访问认证失败：用户名或密码不正确');
+        return;
+      }
+      setWebAuthState('认证已应用');
+      await loadConfig();
+      await refreshStats();
     }
 
     async function api(path, options = {}) {

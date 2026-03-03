@@ -105,7 +105,7 @@ docker pull nginx
 | `WEB_BASIC_AUTH_PASSWORD` | Web 管理端 Basic Auth 密码                 | ——（不设置则不启用）       |
 
 > `ADMIN_TOKEN` 保护的是管理写操作（PUT / DELETE），通过请求头 `X-Admin-Token` 或 `Authorization: Bearer <token>` 传递。
-> Basic Auth 保护的是 Web API（`/api/*`）访问，不影响 `/v2` 与 `/auth/token` 的 Docker 拉取链路。
+> Basic Auth 保护的是 Web 页面（`/`）和 Web API（`/api/*`）访问，不影响 `/v2` 与 `/auth/token` 的 Docker 拉取链路。
 
 
 
@@ -130,6 +130,7 @@ docker pull nginx
 | 方法   | 路径                       | 说明                       | 鉴权                     |
 | ------ | -------------------------- | -------------------------- | ------------------------ |
 | GET    | `/healthz`               | 健康检查                   | 无                       |
+| GET    | `/`                      | Web 管理页面               | Basic Auth（若启用）     |
 | GET    | `/api/admin/config`      | 查看当前配置               | Basic Auth（若启用）     |
 | PUT    | `/api/admin/config`      | 更新配置（保存后自动重启） | Basic Auth + Admin Token |
 | GET    | `/api/admin/stats`       | 查看运行统计               | Basic Auth（若启用）     |
