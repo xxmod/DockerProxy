@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -210,6 +211,7 @@ type Server struct {
 	client     *http.Client
 	cache      *manifestCache
 	metrics    *metrics
+	restarting atomic.Bool
 	cfgMu      sync.RWMutex
 	cfg        Config
 }
@@ -433,6 +435,8 @@ func (s *Server) updateConfig(update configUpdateRequest) (Config, error) {
 		s.cfg.UpstreamAuthRealm = strings.TrimSpace(*update.UpstreamAuthRealm)
 	}
 	s.cfg.normalize()
+	s.client.Timeout = s.cfg.RequestTimeout
+	s.cache.setPolicy(s.cfg.CacheTTL, s.cfg.CacheObjectMaxBytes)
 
 	err := savePersistedConfig(s.cfg.ConfigFilePath, persistedConfig{
 		EnableHTTPS:       s.cfg.EnableHTTPS,
@@ -447,6 +451,46 @@ func (s *Server) updateConfig(update configUpdateRequest) (Config, error) {
 	}
 
 	return s.cfg, nil
+}
+
+func (s *Server) triggerRestart() {
+	if !s.restarting.CompareAndSwap(false, true) {
+		return
+	}
+
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := s.Shutdown(ctx); err != nil {
+			log.Printf("shutdown before restart failed: %v", err)
+		}
+		cancel()
+
+		exe, err := os.Executable()
+		if err != nil {
+			log.Printf("resolve executable failed: %v", err)
+			s.restarting.Store(false)
+			return
+		}
+
+		cmd := exec.Command(exe, os.Args[1:]...)
+		cmd.Env = os.Environ()
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if wd, err := os.Getwd(); err == nil {
+			cmd.Dir = wd
+		}
+
+		if err := cmd.Start(); err != nil {
+			log.Printf("start new process failed: %v", err)
+			s.restarting.Store(false)
+			return
+		}
+
+		os.Exit(0)
+	}()
 }
 
 func (s *Server) ListenAndServe() error {
@@ -657,6 +701,7 @@ func (s *Server) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, toConfigResponse(cfg))
+		s.triggerRestart()
 	default:
 		w.Header().Set("Allow", "GET, PUT")
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})

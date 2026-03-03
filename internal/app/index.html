@@ -342,9 +342,12 @@
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers['X-Admin-Token'] = token;
       const res = await api('/api/admin/config', { method: 'PUT', headers, body: JSON.stringify(body) });
-      alert(res.ok ? '保存成功' : '保存失败：' + JSON.stringify(res.data));
-      await loadConfig();
-      await refreshStats();
+      if (!res.ok) {
+        alert('保存失败：' + JSON.stringify(res.data));
+        return;
+      }
+      alert('保存成功，服务正在自动重启，页面将在 2 秒后刷新');
+      setTimeout(() => window.location.reload(), 2000);
     }
 
     async function refreshStats() {
