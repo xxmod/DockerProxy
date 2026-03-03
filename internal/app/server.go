@@ -266,6 +266,11 @@ func (c *Config) normalize() {
 	if c.ListenAddr == "" {
 		c.ListenAddr = defaultListenAddr
 	}
+	c.TLSCertFile = strings.TrimSpace(c.TLSCertFile)
+	c.TLSKeyFile = strings.TrimSpace(c.TLSKeyFile)
+	if !c.EnableHTTPS && c.TLSCertFile != "" && c.TLSKeyFile != "" {
+		c.EnableHTTPS = true
+	}
 	if c.PublicBaseURL == "" {
 		c.PublicBaseURL = defaultPublicBaseURL
 	}
@@ -287,10 +292,11 @@ func (c *Config) normalize() {
 	if c.RequestTimeout <= 0 {
 		c.RequestTimeout = 60 * time.Second
 	}
+	if c.EnableHTTPS && strings.HasPrefix(strings.ToLower(c.PublicBaseURL), "http://") {
+		c.PublicBaseURL = "https://" + strings.TrimPrefix(c.PublicBaseURL, "http://")
+	}
 	c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
 	c.UpstreamRegistry = strings.TrimRight(c.UpstreamRegistry, "/")
-	c.TLSCertFile = strings.TrimSpace(c.TLSCertFile)
-	c.TLSKeyFile = strings.TrimSpace(c.TLSKeyFile)
 }
 
 func NewServer(cfg Config) (*Server, error) {

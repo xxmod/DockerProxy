@@ -22,6 +22,7 @@ go run ./cmd/dockerproxy
 - `ENABLE_HTTPS`：是否启用 HTTPS（`true/false`），默认 `false`
 - `TLS_CERT_FILE`：TLS 证书文件路径（启用 HTTPS 时必填）
 - `TLS_KEY_FILE`：TLS 私钥文件路径（启用 HTTPS 时必填）
+  - 当 `TLS_CERT_FILE` 和 `TLS_KEY_FILE` 都已配置时，服务会自动切换为 HTTPS 模式
 - `PUBLIC_BASE_URL`：外部访问地址（用于鉴权 realm 改写），默认 `http://localhost:8080`
 - `UPSTREAM_REGISTRY`：上游 registry，默认 `https://registry-1.docker.io`
 - `UPSTREAM_AUTH_REALM`：上游 token 地址，默认 `https://auth.docker.io/token`

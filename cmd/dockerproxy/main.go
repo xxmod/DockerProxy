@@ -19,7 +19,11 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("docker proxy listening on %s", cfg.ListenAddr)
+		protocol := "http"
+		if cfg.EnableHTTPS {
+			protocol = "https"
+		}
+		log.Printf("docker proxy listening on %s (%s)", cfg.ListenAddr, protocol)
 		if err := server.ListenAndServe(); err != nil {
 			log.Fatalf("server stopped: %v", err)
 		}
