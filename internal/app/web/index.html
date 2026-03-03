@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Docker Proxy 管理台</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; color: #1f2937; }
+    h1 { margin-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; }
+    input, button, textarea { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 8px; }
+    button { cursor: pointer; }
+    pre { background: #f9fafb; padding: 12px; border-radius: 8px; overflow: auto; }
+    .result-item { border-bottom: 1px solid #e5e7eb; padding: 8px 0; }
+  </style>
+</head>
+<body>
+  <h1>Docker Proxy 管理台</h1>
+  <p>用于管理代理配置、缓存和镜像搜索。</p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>当前配置</h3>
+      <pre id="config">加载中...</pre>
+      <label>Public Base URL</label>
+      <input id="publicBaseUrl" placeholder="https://docker-proxy.example.com" />
+      <label>Upstream Registry</label>
+      <input id="upstreamRegistry" placeholder="https://registry-1.docker.io" />
+      <label>Upstream Auth Realm</label>
+      <input id="upstreamAuthRealm" placeholder="https://auth.docker.io/token" />
+      <label>Admin Token（可选）</label>
+      <input id="adminToken" placeholder="若服务端配置了 ADMIN_TOKEN，这里必须填写" />
+      <button onclick="saveConfig()">保存配置</button>
+    </div>
+
+    <div class="card">
+      <h3>运行状态</h3>
+      <pre id="stats">加载中...</pre>
+      <button onclick="refreshStats()">刷新状态</button>
+      <button onclick="clearCache()">清空缓存</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>镜像搜索（Docker Hub）</h3>
+    <input id="searchQuery" placeholder="例如：nginx" />
+    <button onclick="searchImages()">搜索</button>
+    <div id="searchResults"></div>
+  </div>
+
+  <script>
+    async function api(path, options = {}) {
+      const response = await fetch(path, options);
+      const text = await response.text();
+      try { return { ok: response.ok, data: JSON.parse(text) }; }
+      catch { return { ok: response.ok, data: { raw: text } }; }
+    }
+
+    async function loadConfig() {
+      const res = await api('/api/admin/config');
+      document.getElementById('config').textContent = JSON.stringify(res.data, null, 2);
+      if (res.ok) {
+        document.getElementById('publicBaseUrl').value = res.data.public_base_url || '';
+        document.getElementById('upstreamRegistry').value = res.data.upstream_registry || '';
+        document.getElementById('upstreamAuthRealm').value = res.data.upstream_auth_realm || '';
+      }
+    }
+
+    async function saveConfig() {
+      const body = {
+        public_base_url: document.getElementById('publicBaseUrl').value,
+        upstream_registry: document.getElementById('upstreamRegistry').value,
+        upstream_auth_realm: document.getElementById('upstreamAuthRealm').value,
+      };
+      const token = document.getElementById('adminToken').value.trim();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['X-Admin-Token'] = token;
+      const res = await api('/api/admin/config', { method: 'PUT', headers, body: JSON.stringify(body) });
+      alert(res.ok ? '保存成功' : '保存失败：' + JSON.stringify(res.data));
+      await loadConfig();
+      await refreshStats();
+    }
+
+    async function refreshStats() {
+      const res = await api('/api/admin/stats');
+      document.getElementById('stats').textContent = JSON.stringify(res.data, null, 2);
+    }
+
+    async function clearCache() {
+      const token = document.getElementById('adminToken').value.trim();
+      const headers = {};
+      if (token) headers['X-Admin-Token'] = token;
+      const res = await api('/api/admin/cache', { method: 'DELETE', headers });
+      alert(res.ok ? '缓存已清空' : '清空失败：' + JSON.stringify(res.data));
+      await refreshStats();
+    }
+
+    async function searchImages() {
+      const q = document.getElementById('searchQuery').value.trim();
+      if (!q) return;
+      const res = await api('/api/search?q=' + encodeURIComponent(q));
+      const container = document.getElementById('searchResults');
+      container.innerHTML = '';
+      const results = res.data.results || [];
+      if (!results.length) {
+        container.textContent = '无结果';
+        return;
+      }
+      results.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'result-item';
+        const name = item.repo_name || item.name || '-';
+        const desc = item.short_description || item.description || '';
+        const stars = item.star_count ?? item.pull_count ?? '-';
+        div.innerHTML = `<strong>${name}</strong><div>${desc}</div><small>热度：${stars}</small>`;
+        container.appendChild(div);
+      });
+    }
+
+    loadConfig();
+    refreshStats();
+  </script>
+</body>
+</html>
