@@ -28,6 +28,7 @@ const (
 	defaultUpstreamRegistry = "https://registry-1.docker.io"
 	defaultUpstreamAuth     = "https://auth.docker.io/token"
 	defaultCacheDir         = "./data/cache"
+	defaultConfigFile       = "./data/config.json"
 )
 
 var realmRegex = regexp.MustCompile(`realm="([^"]+)"`)
@@ -37,6 +38,7 @@ var webFS embed.FS
 
 type Config struct {
 	ListenAddr          string        `json:"listen_addr"`
+	ConfigFilePath      string        `json:"config_file_path"`
 	EnableHTTPS         bool          `json:"enable_https"`
 	TLSCertFile         string        `json:"tls_cert_file"`
 	TLSKeyFile          string        `json:"tls_key_file"`
@@ -52,6 +54,7 @@ type Config struct {
 
 type configResponse struct {
 	ListenAddr          string `json:"listen_addr"`
+	ConfigFilePath      string `json:"config_file_path"`
 	EnableHTTPS         bool   `json:"enable_https"`
 	TLSCertFile         string `json:"tls_cert_file"`
 	TLSKeyFile          string `json:"tls_key_file"`
@@ -72,6 +75,15 @@ type configUpdateRequest struct {
 	PublicBaseURL     *string `json:"public_base_url"`
 	UpstreamRegistry  *string `json:"upstream_registry"`
 	UpstreamAuthRealm *string `json:"upstream_auth_realm"`
+}
+
+type persistedConfig struct {
+	EnableHTTPS       bool   `json:"enable_https"`
+	TLSCertFile       string `json:"tls_cert_file"`
+	TLSKeyFile        string `json:"tls_key_file"`
+	PublicBaseURL     string `json:"public_base_url"`
+	UpstreamRegistry  string `json:"upstream_registry"`
+	UpstreamAuthRealm string `json:"upstream_auth_realm"`
 }
 
 type metrics struct {
@@ -226,6 +238,7 @@ func LoadConfigFromEnv() Config {
 
 	cfg := Config{
 		ListenAddr:          envOrDefault("LISTEN_ADDR", defaultListenAddr),
+		ConfigFilePath:      envOrDefault("CONFIG_FILE", defaultConfigFile),
 		EnableHTTPS:         parseEnvBool("ENABLE_HTTPS", false),
 		TLSCertFile:         strings.TrimSpace(os.Getenv("TLS_CERT_FILE")),
 		TLSKeyFile:          strings.TrimSpace(os.Getenv("TLS_KEY_FILE")),
@@ -238,8 +251,60 @@ func LoadConfigFromEnv() Config {
 		RequestTimeout:      requestTimeout,
 		AdminToken:          os.Getenv("ADMIN_TOKEN"),
 	}
+	if persisted, err := loadPersistedConfig(cfg.ConfigFilePath); err != nil {
+		log.Printf("load persisted config failed: %v", err)
+	} else if persisted != nil {
+		cfg.EnableHTTPS = persisted.EnableHTTPS
+		cfg.TLSCertFile = persisted.TLSCertFile
+		cfg.TLSKeyFile = persisted.TLSKeyFile
+		cfg.PublicBaseURL = persisted.PublicBaseURL
+		cfg.UpstreamRegistry = persisted.UpstreamRegistry
+		cfg.UpstreamAuthRealm = persisted.UpstreamAuthRealm
+	}
 	cfg.normalize()
 	return cfg
+}
+
+func loadPersistedConfig(path string) (*persistedConfig, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var cfg persistedConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+func savePersistedConfig(path string, cfg persistedConfig) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	raw, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, raw, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		return err
+	}
+	return nil
 }
 
 func envOrDefault(key, fallback string) string {
@@ -266,6 +331,10 @@ func (c *Config) normalize() {
 	if c.ListenAddr == "" {
 		c.ListenAddr = defaultListenAddr
 	}
+	if c.ConfigFilePath == "" {
+		c.ConfigFilePath = defaultConfigFile
+	}
+	c.ConfigFilePath = strings.TrimSpace(c.ConfigFilePath)
 	c.TLSCertFile = strings.TrimSpace(c.TLSCertFile)
 	c.TLSKeyFile = strings.TrimSpace(c.TLSKeyFile)
 	if !c.EnableHTTPS && c.TLSCertFile != "" && c.TLSKeyFile != "" {
@@ -341,7 +410,7 @@ func (s *Server) getConfig() Config {
 	return s.cfg
 }
 
-func (s *Server) updateConfig(update configUpdateRequest) Config {
+func (s *Server) updateConfig(update configUpdateRequest) (Config, error) {
 	s.cfgMu.Lock()
 	defer s.cfgMu.Unlock()
 
@@ -364,7 +433,20 @@ func (s *Server) updateConfig(update configUpdateRequest) Config {
 		s.cfg.UpstreamAuthRealm = strings.TrimSpace(*update.UpstreamAuthRealm)
 	}
 	s.cfg.normalize()
-	return s.cfg
+
+	err := savePersistedConfig(s.cfg.ConfigFilePath, persistedConfig{
+		EnableHTTPS:       s.cfg.EnableHTTPS,
+		TLSCertFile:       s.cfg.TLSCertFile,
+		TLSKeyFile:        s.cfg.TLSKeyFile,
+		PublicBaseURL:     s.cfg.PublicBaseURL,
+		UpstreamRegistry:  s.cfg.UpstreamRegistry,
+		UpstreamAuthRealm: s.cfg.UpstreamAuthRealm,
+	})
+	if err != nil {
+		return Config{}, err
+	}
+
+	return s.cfg, nil
 }
 
 func (s *Server) ListenAndServe() error {
@@ -569,7 +651,11 @@ func (s *Server) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
 			return
 		}
-		cfg := s.updateConfig(req)
+		cfg, err := s.updateConfig(req)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "persist config failed"})
+			return
+		}
 		writeJSON(w, http.StatusOK, toConfigResponse(cfg))
 	default:
 		w.Header().Set("Allow", "GET, PUT")
@@ -638,6 +724,7 @@ func (s *Server) authorized(r *http.Request) bool {
 func toConfigResponse(cfg Config) configResponse {
 	return configResponse{
 		ListenAddr:          cfg.ListenAddr,
+		ConfigFilePath:      cfg.ConfigFilePath,
 		EnableHTTPS:         cfg.EnableHTTPS,
 		TLSCertFile:         cfg.TLSCertFile,
 		TLSKeyFile:          cfg.TLSKeyFile,

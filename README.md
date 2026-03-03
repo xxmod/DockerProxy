@@ -19,6 +19,7 @@ go run ./cmd/dockerproxy
 ## 2. 环境变量
 
 - `LISTEN_ADDR`：监听地址，默认 `:8080`
+- `CONFIG_FILE`：后台配置持久化文件路径，默认 `./data/config.json`
 - `ENABLE_HTTPS`：是否启用 HTTPS（`true/false`），默认 `false`
 - `TLS_CERT_FILE`：TLS 证书文件路径（启用 HTTPS 时必填）
 - `TLS_KEY_FILE`：TLS 私钥文件路径（启用 HTTPS 时必填）
@@ -62,4 +63,5 @@ Web 管理页面：`/`
 
 - 当前缓存策略只针对 `manifest` 与 `tags/list` 相关 GET 请求。
 - HTTPS 配置更新后需要重启服务才能生效（监听模式在启动时决定）。
+- 通过后台 `PUT /api/admin/config` 保存的配置会写入 `CONFIG_FILE`，服务重启后会自动加载。
 - 若对外暴露管理接口，建议务必设置 `ADMIN_TOKEN`，并通过反向代理加上 HTTPS 与访问控制。
