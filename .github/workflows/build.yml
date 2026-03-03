@@ -41,3 +41,19 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+      - name: Build release artifact
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w" -o dist/dockerproxy ./cmd/dockerproxy
+          tar -czf dist/dockerproxy_linux_amd64.tar.gz -C dist dockerproxy
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dockerproxy-build-${{ github.sha }}
+          path: dist/dockerproxy_linux_amd64.tar.gz
