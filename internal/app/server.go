@@ -32,11 +32,14 @@ const (
 
 var realmRegex = regexp.MustCompile(`realm="([^"]+)"`)
 
-//go:embed web/index.html
+//go:embed index.html
 var webFS embed.FS
 
 type Config struct {
 	ListenAddr          string        `json:"listen_addr"`
+	EnableHTTPS         bool          `json:"enable_https"`
+	TLSCertFile         string        `json:"tls_cert_file"`
+	TLSKeyFile          string        `json:"tls_key_file"`
 	PublicBaseURL       string        `json:"public_base_url"`
 	UpstreamRegistry    string        `json:"upstream_registry"`
 	UpstreamAuthRealm   string        `json:"upstream_auth_realm"`
@@ -49,6 +52,9 @@ type Config struct {
 
 type configResponse struct {
 	ListenAddr          string `json:"listen_addr"`
+	EnableHTTPS         bool   `json:"enable_https"`
+	TLSCertFile         string `json:"tls_cert_file"`
+	TLSKeyFile          string `json:"tls_key_file"`
 	PublicBaseURL       string `json:"public_base_url"`
 	UpstreamRegistry    string `json:"upstream_registry"`
 	UpstreamAuthRealm   string `json:"upstream_auth_realm"`
@@ -60,6 +66,9 @@ type configResponse struct {
 }
 
 type configUpdateRequest struct {
+	EnableHTTPS       *bool   `json:"enable_https"`
+	TLSCertFile       *string `json:"tls_cert_file"`
+	TLSKeyFile        *string `json:"tls_key_file"`
 	PublicBaseURL     *string `json:"public_base_url"`
 	UpstreamRegistry  *string `json:"upstream_registry"`
 	UpstreamAuthRealm *string `json:"upstream_auth_realm"`
@@ -217,6 +226,9 @@ func LoadConfigFromEnv() Config {
 
 	cfg := Config{
 		ListenAddr:          envOrDefault("LISTEN_ADDR", defaultListenAddr),
+		EnableHTTPS:         parseEnvBool("ENABLE_HTTPS", false),
+		TLSCertFile:         strings.TrimSpace(os.Getenv("TLS_CERT_FILE")),
+		TLSKeyFile:          strings.TrimSpace(os.Getenv("TLS_KEY_FILE")),
 		PublicBaseURL:       envOrDefault("PUBLIC_BASE_URL", defaultPublicBaseURL),
 		UpstreamRegistry:    envOrDefault("UPSTREAM_REGISTRY", defaultUpstreamRegistry),
 		UpstreamAuthRealm:   envOrDefault("UPSTREAM_AUTH_REALM", defaultUpstreamAuth),
@@ -236,6 +248,18 @@ func envOrDefault(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func parseEnvBool(key string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func (c *Config) normalize() {
@@ -265,6 +289,8 @@ func (c *Config) normalize() {
 	}
 	c.PublicBaseURL = strings.TrimRight(c.PublicBaseURL, "/")
 	c.UpstreamRegistry = strings.TrimRight(c.UpstreamRegistry, "/")
+	c.TLSCertFile = strings.TrimSpace(c.TLSCertFile)
+	c.TLSKeyFile = strings.TrimSpace(c.TLSKeyFile)
 }
 
 func NewServer(cfg Config) (*Server, error) {
@@ -313,6 +339,15 @@ func (s *Server) updateConfig(update configUpdateRequest) Config {
 	s.cfgMu.Lock()
 	defer s.cfgMu.Unlock()
 
+	if update.EnableHTTPS != nil {
+		s.cfg.EnableHTTPS = *update.EnableHTTPS
+	}
+	if update.TLSCertFile != nil {
+		s.cfg.TLSCertFile = strings.TrimSpace(*update.TLSCertFile)
+	}
+	if update.TLSKeyFile != nil {
+		s.cfg.TLSKeyFile = strings.TrimSpace(*update.TLSKeyFile)
+	}
 	if update.PublicBaseURL != nil {
 		s.cfg.PublicBaseURL = strings.TrimRight(strings.TrimSpace(*update.PublicBaseURL), "/")
 	}
@@ -327,7 +362,16 @@ func (s *Server) updateConfig(update configUpdateRequest) Config {
 }
 
 func (s *Server) ListenAndServe() error {
-	err := s.httpServer.ListenAndServe()
+	cfg := s.getConfig()
+	var err error
+	if cfg.EnableHTTPS {
+		if cfg.TLSCertFile == "" || cfg.TLSKeyFile == "" {
+			return errors.New("https enabled but TLS_CERT_FILE or TLS_KEY_FILE is empty")
+		}
+		err = s.httpServer.ListenAndServeTLS(cfg.TLSCertFile, cfg.TLSKeyFile)
+	} else {
+		err = s.httpServer.ListenAndServe()
+	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
@@ -347,7 +391,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	content, err := webFS.ReadFile("web/index.html")
+	content, err := webFS.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "index not found", http.StatusInternalServerError)
 		return
@@ -588,6 +632,9 @@ func (s *Server) authorized(r *http.Request) bool {
 func toConfigResponse(cfg Config) configResponse {
 	return configResponse{
 		ListenAddr:          cfg.ListenAddr,
+		EnableHTTPS:         cfg.EnableHTTPS,
+		TLSCertFile:         cfg.TLSCertFile,
+		TLSKeyFile:          cfg.TLSKeyFile,
 		PublicBaseURL:       cfg.PublicBaseURL,
 		UpstreamRegistry:    cfg.UpstreamRegistry,
 		UpstreamAuthRealm:   cfg.UpstreamAuthRealm,

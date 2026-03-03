@@ -25,6 +25,12 @@
       <pre id="config">加载中...</pre>
       <label>Public Base URL</label>
       <input id="publicBaseUrl" placeholder="https://docker-proxy.example.com" />
+      <label>启用 HTTPS</label>
+      <input id="enableHttps" type="checkbox" style="width:auto; margin-top:12px;" />
+      <label>TLS Cert File</label>
+      <input id="tlsCertFile" placeholder="例如：/etc/ssl/certs/fullchain.pem" />
+      <label>TLS Key File</label>
+      <input id="tlsKeyFile" placeholder="例如：/etc/ssl/private/privkey.pem" />
       <label>Upstream Registry</label>
       <input id="upstreamRegistry" placeholder="https://registry-1.docker.io" />
       <label>Upstream Auth Realm</label>
@@ -62,6 +68,9 @@
       document.getElementById('config').textContent = JSON.stringify(res.data, null, 2);
       if (res.ok) {
         document.getElementById('publicBaseUrl').value = res.data.public_base_url || '';
+        document.getElementById('enableHttps').checked = !!res.data.enable_https;
+        document.getElementById('tlsCertFile').value = res.data.tls_cert_file || '';
+        document.getElementById('tlsKeyFile').value = res.data.tls_key_file || '';
         document.getElementById('upstreamRegistry').value = res.data.upstream_registry || '';
         document.getElementById('upstreamAuthRealm').value = res.data.upstream_auth_realm || '';
       }
@@ -70,6 +79,9 @@
     async function saveConfig() {
       const body = {
         public_base_url: document.getElementById('publicBaseUrl').value,
+        enable_https: document.getElementById('enableHttps').checked,
+        tls_cert_file: document.getElementById('tlsCertFile').value,
+        tls_key_file: document.getElementById('tlsKeyFile').value,
         upstream_registry: document.getElementById('upstreamRegistry').value,
         upstream_auth_realm: document.getElementById('upstreamAuthRealm').value,
       };

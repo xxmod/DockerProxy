@@ -19,6 +19,9 @@ go run ./cmd/dockerproxy
 ## 2. 环境变量
 
 - `LISTEN_ADDR`：监听地址，默认 `:8080`
+- `ENABLE_HTTPS`：是否启用 HTTPS（`true/false`），默认 `false`
+- `TLS_CERT_FILE`：TLS 证书文件路径（启用 HTTPS 时必填）
+- `TLS_KEY_FILE`：TLS 私钥文件路径（启用 HTTPS 时必填）
 - `PUBLIC_BASE_URL`：外部访问地址（用于鉴权 realm 改写），默认 `http://localhost:8080`
 - `UPSTREAM_REGISTRY`：上游 registry，默认 `https://registry-1.docker.io`
 - `UPSTREAM_AUTH_REALM`：上游 token 地址，默认 `https://auth.docker.io/token`
@@ -46,6 +49,7 @@ go run ./cmd/dockerproxy
 
 - `GET /api/admin/config`：查看配置
 - `PUT /api/admin/config`：更新配置（支持 `public_base_url`、`upstream_registry`、`upstream_auth_realm`）
+  - 也支持 HTTPS 相关配置：`enable_https`、`tls_cert_file`、`tls_key_file`
 - `GET /api/admin/stats`：查看统计
 - `GET /api/admin/cache`：查看缓存文件数
 - `DELETE /api/admin/cache`：清空缓存
@@ -56,4 +60,5 @@ Web 管理页面：`/`
 ## 5. 注意事项
 
 - 当前缓存策略只针对 `manifest` 与 `tags/list` 相关 GET 请求。
+- HTTPS 配置更新后需要重启服务才能生效（监听模式在启动时决定）。
 - 若对外暴露管理接口，建议务必设置 `ADMIN_TOKEN`，并通过反向代理加上 HTTPS 与访问控制。
