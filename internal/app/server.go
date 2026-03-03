@@ -214,6 +214,8 @@ type Server struct {
 	cache          *manifestCache
 	metrics        *metrics
 	restarting     atomic.Bool
+	webBasicUser   string
+	webBasicPass   string
 	cfgMu          sync.RWMutex
 	cfg            Config
 }
@@ -380,22 +382,24 @@ func NewServer(cfg Config) (*Server, error) {
 	}
 
 	s := &Server{
-		client:  &http.Client{Timeout: cfg.RequestTimeout},
-		cache:   cache,
-		metrics: &metrics{},
-		cfg:     cfg,
+		client:       &http.Client{Timeout: cfg.RequestTimeout},
+		cache:        cache,
+		metrics:      &metrics{},
+		webBasicUser: strings.TrimSpace(os.Getenv("WEB_BASIC_AUTH_USER")),
+		webBasicPass: strings.TrimSpace(os.Getenv("WEB_BASIC_AUTH_PASSWORD")),
+		cfg:          cfg,
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealth)
-	mux.HandleFunc("/api/search", s.handleSearch)
-	mux.HandleFunc("/api/admin/config", s.handleAdminConfig)
-	mux.HandleFunc("/api/admin/stats", s.handleAdminStats)
-	mux.HandleFunc("/api/admin/cache", s.handleAdminCache)
+	mux.HandleFunc("/api/search", s.withWebBasicAuth(s.handleSearch))
+	mux.HandleFunc("/api/admin/config", s.withWebBasicAuth(s.handleAdminConfig))
+	mux.HandleFunc("/api/admin/stats", s.withWebBasicAuth(s.handleAdminStats))
+	mux.HandleFunc("/api/admin/cache", s.withWebBasicAuth(s.handleAdminCache))
 	mux.HandleFunc("/auth/token", s.handleAuthToken)
 	mux.HandleFunc("/v2", s.handleV2)
 	mux.HandleFunc("/v2/", s.handleV2)
-	mux.HandleFunc("/", s.handleIndex)
+	mux.HandleFunc("/", s.withWebBasicAuth(s.handleIndex))
 
 	s.httpServer = &http.Server{
 		Addr:         cfg.ListenAddr,
@@ -559,6 +563,24 @@ func buildHTTPRedirectAddr(httpsAddr string) string {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) withWebBasicAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.webBasicUser == "" && s.webBasicPass == "" {
+			next(w, r)
+			return
+		}
+
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != s.webBasicUser || pass != s.webBasicPass {
+			w.Header().Set("WWW-Authenticate", `Basic realm="DockerProxy Admin"`)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+			return
+		}
+
+		next(w, r)
+	}
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {

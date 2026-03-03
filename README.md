@@ -32,6 +32,8 @@ go run ./cmd/dockerproxy
 - `CACHE_OBJECT_MAX_BYTES`：单对象缓存最大字节，默认 `8388608`（8MB）
 - `REQUEST_TIMEOUT`：上游请求超时，默认 `60s`
 - `ADMIN_TOKEN`：管理写操作口令（可选）
+- `WEB_BASIC_AUTH_USER`：Web 管理端 Basic Auth 用户名（可选）
+- `WEB_BASIC_AUTH_PASSWORD`：Web 管理端 Basic Auth 密码（可选）
 
 ## 3. Docker 客户端配置镜像加速
 
